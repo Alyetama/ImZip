@@ -40,6 +40,14 @@ html[data-theme="dark"] {
   --gif: #9AA0A8;
 }
 
+/* Terminal surfaces share the dark page background; outline them so the
+   examples read as windows instead of floating text. */
+html[data-theme="dark"] .term,
+html[data-theme="dark"] .ex,
+html[data-theme="dark"] .install-line {
+  border: 1px solid var(--line);
+}
+
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 html { scroll-behavior: smooth; }
