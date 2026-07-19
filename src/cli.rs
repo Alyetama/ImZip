@@ -179,9 +179,13 @@ pub struct DiagOpts {
     #[arg(long, value_name = "PATH")]
     pub config: Option<PathBuf>,
 
-    /// Parallel jobs (default: number of CPU cores)
-    #[arg(short, long, value_name = "N", value_parser = clap::value_parser!(u32).range(1..))]
-    pub jobs: Option<u32>,
+    /// Parallel worker threads: a number, or "auto" for all CPU cores (default: auto)
+    #[arg(short, long, value_name = "N")]
+    pub jobs: Option<Jobs>,
+
+    /// Process files one at a time, no parallelism (same as --jobs 1)
+    #[arg(long, conflicts_with = "jobs")]
+    pub sequential: bool,
 
     /// Print a detail line for every processed file
     #[arg(short, long, conflicts_with = "quiet")]
@@ -194,6 +198,29 @@ pub struct DiagOpts {
     /// Disable the progress bar
     #[arg(long)]
     pub no_progress: bool,
+}
+
+/// Value for `--jobs`: an explicit worker count, or `auto` for all CPU cores.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Jobs {
+    Auto,
+    N(usize),
+}
+
+impl std::str::FromStr for Jobs {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s.eq_ignore_ascii_case("auto") {
+            return Ok(Jobs::Auto);
+        }
+        match s.parse::<usize>() {
+            Ok(n) if n >= 1 => Ok(Jobs::N(n)),
+            _ => Err(format!(
+                "invalid jobs value `{s}`: expected `auto` or a number >= 1"
+            )),
+        }
+    }
 }
 
 #[derive(ValueEnum, Clone, Copy, Debug, PartialEq, Eq)]

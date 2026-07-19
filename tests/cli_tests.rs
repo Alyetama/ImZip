@@ -155,3 +155,23 @@ fn background_parsing() {
     assert!(parse_background("#12345").is_err());
     assert!(parse_background("#gg0000").is_err());
 }
+
+#[test]
+fn jobs_parsing() {
+    use imzip::cli::Jobs;
+
+    let cli = Cli::try_parse_from(["imzip", "a.jpg", "--jobs", "auto"]).unwrap();
+    assert_eq!(cli.diag.jobs, Some(Jobs::Auto));
+    let cli = Cli::try_parse_from(["imzip", "a.jpg", "--jobs", "AUTO"]).unwrap();
+    assert_eq!(cli.diag.jobs, Some(Jobs::Auto));
+    let cli = Cli::try_parse_from(["imzip", "a.jpg", "-j", "8"]).unwrap();
+    assert_eq!(cli.diag.jobs, Some(Jobs::N(8)));
+
+    assert!(Cli::try_parse_from(["imzip", "a.jpg", "--jobs", "0"]).is_err());
+    assert!(Cli::try_parse_from(["imzip", "a.jpg", "--jobs", "-2"]).is_err());
+    assert!(Cli::try_parse_from(["imzip", "a.jpg", "--jobs", "x"]).is_err());
+
+    let cli = Cli::try_parse_from(["imzip", "a.jpg", "--sequential"]).unwrap();
+    assert!(cli.diag.sequential);
+    assert!(Cli::try_parse_from(["imzip", "a.jpg", "--sequential", "--jobs", "4"]).is_err());
+}

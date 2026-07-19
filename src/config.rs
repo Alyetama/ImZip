@@ -347,19 +347,21 @@ pub fn resolve(cli: &Cli) -> Result<Settings, String> {
         cli::validate_template(t)?;
     }
 
-    let jobs = cli
-        .diag
-        .jobs
-        .map(|j| j as usize)
-        .or(cfg.jobs)
-        .unwrap_or_else(|| {
-            std::thread::available_parallelism()
-                .map(|n| n.get())
-                .unwrap_or(4)
-        });
-    if jobs == 0 {
-        return Err("jobs must be at least 1".to_string());
-    }
+    let cores = || {
+        std::thread::available_parallelism()
+            .map(|n| n.get())
+            .unwrap_or(4)
+    };
+    let jobs = if cli.diag.sequential {
+        1
+    } else {
+        match cli.diag.jobs {
+            Some(cli::Jobs::Auto) => cores(),
+            Some(cli::Jobs::N(n)) => n,
+            // config: a positive number pins the count, 0 or missing means auto
+            None => cfg.jobs.filter(|&n| n >= 1).unwrap_or_else(cores),
+        }
+    };
 
     Ok(Settings {
         recursive: cli.io.recursive || cfg.recursive.unwrap_or(false),
