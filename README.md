@@ -6,6 +6,8 @@ Encoding is handled by mozjpeg for JPEG, oxipng and imagequant for PNG, libwebp 
 
 Measured on a 182 KB phone photo: quality 60 JPEG comes out at 4 KB. A 936 KB screenshot becomes a 20 KB WebP under a `--target-size 30KB` budget.
 
+![Terminal demo: imzip compresses a photo to 4 KB, then converts a folder to WebP under a 30 KB budget](docs/demo.gif)
+
 ## Features
 
 - Batch input: files, directories (`-r` to recurse) and glob patterns like `**/*.jpg`, deduplicated, processed across all cores.
