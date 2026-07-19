@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>imzip: compress, resize and convert images from the terminal</title>
+<script>
+// Apply a saved theme before first paint; with nothing saved the page stays dark.
+try {
+  var savedTheme = localStorage.getItem("imzip-theme");
+  if (savedTheme === "light" || savedTheme === "dark") {
+    document.documentElement.dataset.theme = savedTheme;
+  }
+} catch (e) {}
+</script>
+<meta name="description" content="imzip is a Rust CLI for compressing, resizing and converting images. mozjpeg, oxipng, libwebp and ravif behind one flag set, with batch semantics built for scripts.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="wrap header-inner">
+    <a class="wordmark" href="#top">imzip<span class="cursor" aria-hidden="true">_</span></a>
+    <nav aria-label="Sections">
+      <a href="#features">Features</a>
+      <a href="#metadata">Metadata</a>
+      <a href="#examples">Examples</a>
+      <a href="#flags">Flags</a>
+      <a href="https://github.com/Alyetama/ImZip">GitHub</a>
+      <button class="theme-toggle" type="button" aria-pressed="true" aria-label="Toggle color theme" title="Toggle color theme">
+        <svg class="icon-sun" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true">
+          <circle cx="8" cy="8" r="3.2"/>
+          <path d="M8 1.4v1.7M8 12.9v1.7M1.4 8h1.7M12.9 8h1.7M3.3 3.3l1.2 1.2M11.5 11.5l1.2 1.2M12.7 3.3l-1.2 1.2M4.5 11.5l-1.2 1.2"/>
+        </svg>
+        <svg class="icon-moon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M13.6 9.6A5.6 5.6 0 0 1 6.4 2.4a5.6 5.6 0 1 0 7.2 7.2Z"/>
+        </svg>
+      </button>
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="wrap">
+      <p class="eyebrow">Command-line image tool · Rust · single binary</p>
+      <h1>Your images are heavier than they need to be.</h1>
+      <p class="lede">imzip fixes that from the terminal. It compresses, resizes and converts
+      images with mozjpeg, oxipng, libwebp and ravif behind one flag set, and it treats batches
+      the way scripts need: parallel work, per-file errors, honest exit codes.</p>
+
+      <div class="hero-grid">
+        <div class="term" data-copy>
+          <div class="term-bar"><span></span><span></span><span></span><em>terminal</em></div>
+<pre><code><span class="p">$</span> imzip photo.jpg -q 60
+photo.jpg <span class="dim">-></span> photo_imzip.jpg <span class="ok">ok</span> <span class="dim">182.3 KB -> 4.0 KB</span>
+
+<span class="p">$</span> imzip shots/ -r --format webp --target-size 30KB
+<span class="dim">████████████</span> 12/12
+Done: 12 ok, 0 skipped, 0 failed <span class="dim">| 11.2 MB -> 349 KB</span></code></pre>
+        </div>
+
+        <div class="shrink" aria-label="Compression results">
+          <p class="shrink-title">Measured on real files</p>
+          <div class="shrink-row">
+            <div class="shrink-labels"><span>photo.jpg, quality 60</span><span class="nums">182.3 KB <b>→</b> 4.0 KB</span></div>
+            <div class="barpair">
+              <div class="barline"><span class="tag">in</span><div class="bar ghost"></div></div>
+              <div class="barline"><span class="tag">out</span><div class="bar"><i style="--to:2.2%"></i></div></div>
+            </div>
+            <span class="pct">−97.8%</span>
+          </div>
+          <div class="shrink-row">
+            <div class="shrink-labels"><span>screenshot.png <b>→</b> webp, 30 KB budget</span><span class="nums">936.0 KB <b>→</b> 20.2 KB</span></div>
+            <div class="barpair">
+              <div class="barline"><span class="tag">in</span><div class="bar ghost"></div></div>
+              <div class="barline"><span class="tag">out</span><div class="bar"><i style="--to:2.2%"></i></div></div>
+            </div>
+            <span class="pct">−97.8%</span>
+          </div>
+          <div class="shrink-row">
+            <div class="shrink-labels"><span>5 photos <b>→</b> avif, 25% scale</span><span class="nums">1.32 MB <b>→</b> 6.0 KB</span></div>
+            <div class="barpair">
+              <div class="barline"><span class="tag">in</span><div class="bar ghost"></div></div>
+              <div class="barline"><span class="tag">out</span><div class="bar"><i style="--to:0.5%"></i></div></div>
+            </div>
+            <span class="pct">−99.5%</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="dither" aria-hidden="true"></div>
+
+  <!-- Install -->
+  <section class="install">
+    <div class="wrap">
+      <h2 class="sr-only">Install</h2>
+      <div class="install-line" data-copy><code>cargo install --git https://github.com/Alyetama/ImZip</code><button class="copy" type="button">Copy</button></div>
+      <p class="install-note">One command, straight from the repo. Needs a Rust toolchain (<a href="https://rustup.rs">rustup</a>) and a C toolchain: mozjpeg, libwebp and dav1d compile bundled C. No nasm on aarch64. From a clone instead: <code>cargo install --path .</code></p>
+    </div>
+  </section>
+
+  <!-- Features -->
+  <section id="features" class="section">
+    <div class="wrap">
+      <p class="eyebrow">What it does</p>
+      <h2>One tool, the whole image chore list</h2>
+      <div class="cards">
+        <article class="card">
+          <h3>Batch without babysitting</h3>
+          <p>Files, folders and glob patterns like <code>**/*.jpg</code> in one command. Work runs across all cores with a progress bar. A corrupt file gets its own line in the report while the rest of the batch finishes.</p>
+        </article>
+        <article class="card">
+          <h3>Compression with real knobs</h3>
+          <p>Quality per format, progressive JPEG, chroma subsampling, PNG palette quantization, lossless WebP, AVIF speed. Or skip the knobs: <code>--target-size 200KB</code> searches the quality setting for you.</p>
+        </article>
+        <article class="card">
+          <h3>Resize any way you measure</h3>
+          <p>Exact dimensions, percentage, max width or height, longest or shortest edge, megapixel cap. Lanczos3 by default. Upscaling stays off unless you pass <code>--allow-upscale</code>.</p>
+        </article>
+        <article class="card">
+          <h3>Convert between five formats</h3>
+          <p>JPEG, PNG, WebP, AVIF and static GIF. Alpha flattens onto a background color when the target format has none. BMP, TIFF and the other read-only formats come out as PNG.</p>
+        </article>
+        <article class="card">
+          <h3>Metadata you decided on</h3>
+          <p>EXIF is stripped and the ICC profile kept by default. Two flags cover the other two philosophies. Details in the <a href="#metadata">metadata section</a>.</p>
+        </article>
+        <article class="card">
+          <h3>Built for scripts</h3>
+          <p><code>--dry-run</code> prints the plan and writes nothing. <code>--quiet</code> prints errors only. Exit codes split success, partial failure and bad arguments, so CI can react properly.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <div class="dither" aria-hidden="true"></div>
+
+  <!-- Metadata -->
+  <section id="metadata" class="section">
+    <div class="wrap">
+      <p class="eyebrow">The three metadata modes</p>
+      <h2>Privacy by default, color accuracy included</h2>
+      <p class="section-lede">EXIF often contains GPS coordinates and camera details you do not want to publish.
+      The ICC profile is what keeps colors right. imzip drops the first and keeps the second unless you say otherwise.</p>
+
+      <div class="modes">
+        <article class="mode">
+          <h3><code>default</code></h3>
+          <dl><dt>EXIF / XMP / IPTC</dt><dd>stripped</dd><dt>ICC profile</dt><dd class="keep">kept</dd></dl>
+          <p>What you want for publishing to the web.</p>
+        </article>
+        <article class="mode">
+          <h3><code>--strip-all-metadata</code></h3>
+          <dl><dt>EXIF / XMP / IPTC</dt><dd>stripped</dd><dt>ICC profile</dt><dd>stripped</dd></dl>
+          <p>A completely clean file, color profile included.</p>
+        </article>
+        <article class="mode">
+          <h3><code>--keep-metadata</code></h3>
+          <dl><dt>EXIF / XMP / IPTC</dt><dd class="keep">copied over</dd><dt>ICC profile</dt><dd class="keep">kept</dd></dl>
+          <p>For archives and color-managed pipelines.</p>
+        </article>
+      </div>
+
+      <p class="matrix-note">Preservation is re-injected into the encoded bytes, format by format:</p>
+      <div class="table-scroll">
+      <table class="matrix">
+        <thead><tr><th>Format</th><th>ICC</th><th>EXIF</th><th>XMP</th></tr></thead>
+        <tbody>
+          <tr><td><span class="chip jpeg">JPEG</span></td><td>Yes, APP2 multi-chunk</td><td>Yes, APP1</td><td>Yes, APP1</td></tr>
+          <tr><td><span class="chip png">PNG</span></td><td>Yes, <code>iCCP</code></td><td>Yes, <code>eXIf</code></td><td>Yes, <code>iTXt</code></td></tr>
+          <tr><td><span class="chip webp">WebP</span></td><td>Yes, <code>ICCP</code></td><td>Yes, <code>EXIF</code></td><td>Yes, VP8X rebuilt</td></tr>
+          <tr><td><span class="chip avif">AVIF</span></td><td>No</td><td>No</td><td>No</td></tr>
+          <tr><td><span class="chip gif">GIF</span></td><td>No</td><td>No</td><td>No</td></tr>
+        </tbody>
+      </table>
+      </div>
+    </div>
+  </section>
+
+  <div class="dither" aria-hidden="true"></div>
+
+  <!-- Examples -->
+  <section id="examples" class="section">
+    <div class="wrap">
+      <p class="eyebrow">Recipes</p>
+      <h2>Common runs, copy-paste ready</h2>
+      <div class="examples">
+
+        <figure class="ex" data-copy>
+          <figcaption>Compress one file</figcaption>
+<pre><code><span class="p">$</span> imzip photo.jpg -q 70
+<span class="dim"># photo_imzip.jpg lands next to the input</span></code></pre>
+        </figure>
+
+        <figure class="ex" data-copy>
+          <figcaption>Resize a folder recursively, structure mirrored</figcaption>
+<pre><code><span class="p">$</span> imzip ~/Pictures/vacation -r -o out/ --longest-edge 1600 -q 80</code></pre>
+        </figure>
+
+        <figure class="ex" data-copy>
+          <figcaption>Convert PNG to WebP under a size budget</figcaption>
+<pre><code><span class="p">$</span> imzip screenshot.png --format webp --target-size 200KB
+<span class="dim"># add --verbose to see the quality the search picked</span></code></pre>
+        </figure>
+
+        <figure class="ex" data-copy>
+          <figcaption>Strip every byte of metadata, in place</figcaption>
+<pre><code><span class="p">$</span> imzip images/ -r --strip-all-metadata --in-place --force</code></pre>
+        </figure>
+
+        <figure class="ex" data-copy>
+          <figcaption>Preview a run without writing anything</figcaption>
+<pre><code><span class="p">$</span> imzip images/ -r --format avif --percent 50 --dry-run</code></pre>
+        </figure>
+
+        <figure class="ex" data-copy>
+          <figcaption>Rename outputs with a template</figcaption>
+<pre><code><span class="p">$</span> imzip "assets/**/*.png" -o dist/ --format webp \
+    --name-template "{parent}/{name}-{width}x{height}.{ext}"
+<span class="dim"># dist/icons/logo-512x512.webp</span></code></pre>
+        </figure>
+
+      </div>
+    </div>
+  </section>
+
+  <div class="dither" aria-hidden="true"></div>
+
+  <!-- Flags -->
+  <section id="flags" class="section">
+    <div class="wrap">
+      <p class="eyebrow">Reference</p>
+      <h2>The flag set, grouped</h2>
+
+      <div class="flag-groups">
+        <details open>
+          <summary>Input and output</summary>
+          <div class="table-scroll"><table>
+            <tbody>
+              <tr><td><code>&lt;INPUT&gt;...</code></td><td>Files, directories or globs. Directories scan one level deep unless <code>-r</code>.</td></tr>
+              <tr><td><code>-r, --recursive</code></td><td>Recurse into input directories.</td></tr>
+              <tr><td><code>-o, --output &lt;DIR&gt;</code></td><td>Write into DIR, keeping the input structure under it.</td></tr>
+              <tr><td><code>--in-place</code></td><td>Overwrite inputs. With a format change, writes a sibling and keeps the original.</td></tr>
+              <tr><td><code>--name-template &lt;T&gt;</code></td><td><code>{name}</code> <code>{ext}</code> <code>{format}</code> <code>{width}</code> <code>{height}</code> <code>{index}</code> <code>{parent}</code>. Default: <code>{name}_imzip.{ext}</code>.</td></tr>
+              <tr><td><code>--dry-run</code></td><td>Print the plan, write nothing.</td></tr>
+              <tr><td><code>--force</code></td><td>Overwrite existing outputs and override both skip rules.</td></tr>
+            </tbody>
+          </table></div>
+        </details>
+
+        <details>
+          <summary>Resize</summary>
+          <div class="table-scroll"><table>
+            <tbody>
+              <tr><td><code>--width</code> / <code>--height &lt;PX&gt;</code></td><td>Both: exact size. One alone: keep the aspect ratio.</td></tr>
+              <tr><td><code>--percent &lt;F&gt;</code></td><td>Scale to a percentage, e.g. <code>50</code> or <code>33.3</code>.</td></tr>
+              <tr><td><code>--max-width</code> / <code>--max-height &lt;PX&gt;</code></td><td>Downscale to at most this size. No-op if smaller.</td></tr>
+              <tr><td><code>--longest-edge &lt;PX&gt;</code></td><td>Downscale so the longest edge equals PX.</td></tr>
+              <tr><td><code>--shortest-edge &lt;PX&gt;</code></td><td>Scale so the shortest edge equals PX.</td></tr>
+              <tr><td><code>--max-megapixels &lt;F&gt;</code></td><td>Downscale to at most F megapixels.</td></tr>
+              <tr><td><code>--allow-upscale</code></td><td>Permit enlarging. Off by default.</td></tr>
+              <tr><td><code>--filter &lt;F&gt;</code></td><td><code>nearest</code>, <code>triangle</code>, <code>catmull-rom</code>, <code>lanczos3</code> (default).</td></tr>
+            </tbody>
+          </table></div>
+        </details>
+
+        <details>
+          <summary>Compression</summary>
+          <div class="table-scroll"><table>
+            <tbody>
+              <tr><td><code>-q, --quality &lt;0-100&gt;</code></td><td>Quality for JPEG, WebP and AVIF. Default: 75.</td></tr>
+              <tr><td><code>--progressive</code></td><td>Progressive JPEG.</td></tr>
+              <tr><td><code>--chroma-subsampling &lt;444|422|420&gt;</code></td><td>JPEG chroma subsampling. Default: 420.</td></tr>
+              <tr><td><code>--png-compression &lt;0-6&gt;</code></td><td>oxipng optimization preset. Default: 2.</td></tr>
+              <tr><td><code>--png-colors &lt;2-256&gt;</code></td><td>Quantize to an N-color palette with imagequant, then optimize.</td></tr>
+              <tr><td><code>--webp-lossless</code></td><td>Lossless WebP.</td></tr>
+              <tr><td><code>--avif-speed &lt;1-10&gt;</code></td><td>ravif speed. 1 is slowest and smallest. Default: 6.</td></tr>
+              <tr><td><code>--target-size &lt;SIZE&gt;</code></td><td>e.g. <code>200KB</code>, <code>1.5MB</code>. Binary-searches quality, keeps the highest that fits. SI units, lossy formats only.</td></tr>
+            </tbody>
+          </table></div>
+        </details>
+
+        <details>
+          <summary>Format and metadata</summary>
+          <div class="table-scroll"><table>
+            <tbody>
+              <tr><td><code>--format &lt;FMT&gt;</code></td><td><code>jpeg</code>, <code>png</code>, <code>webp</code>, <code>avif</code> or <code>gif</code>. Default: keep input format.</td></tr>
+              <tr><td><code>--background &lt;COLOR&gt;</code></td><td>Alpha flattening background: <code>#RRGGBB</code> or a name. Default: white.</td></tr>
+              <tr><td><code>--strip-all-metadata</code></td><td>Drop everything, ICC included.</td></tr>
+              <tr><td><code>--keep-metadata</code></td><td>Copy ICC, EXIF and XMP into the output, best effort.</td></tr>
+            </tbody>
+          </table></div>
+        </details>
+
+        <details>
+          <summary>Config and diagnostics</summary>
+          <div class="table-scroll"><table>
+            <tbody>
+              <tr><td><code>--config &lt;PATH&gt;</code></td><td>Use this config file. Default: search upward for <code>imzip.toml</code>, <code>.imziprc</code>, <code>.imzip.toml</code>.</td></tr>
+              <tr><td><code>-j, --jobs &lt;N&gt;</code></td><td>Worker threads: a number, or <code>auto</code> for all cores. Default: <code>auto</code>.</td></tr>
+              <tr><td><code>--sequential</code></td><td>One file at a time, no parallelism. Same as <code>--jobs 1</code>.</td></tr>
+              <tr><td><code>-v, --verbose</code></td><td>One line per file, including the chosen quality for size targets.</td></tr>
+              <tr><td><code>--quiet</code></td><td>Errors only, on stderr. <code>-q</code> means quality.</td></tr>
+              <tr><td><code>--no-progress</code></td><td>Disable the progress bar.</td></tr>
+            </tbody>
+          </table></div>
+        </details>
+      </div>
+
+      <div class="exitcfg">
+        <div>
+          <h3>Exit codes</h3>
+          <table class="exit-table">
+            <tbody>
+              <tr><td><code>0</code></td><td>Everything succeeded, skips included.</td></tr>
+              <tr><td><code>1</code></td><td>Some files failed; the rest were processed.</td></tr>
+              <tr><td><code>2</code></td><td>Bad arguments or invalid config.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div>
+          <h3>Config file</h3>
+          <p>Drop <code>imzip.toml</code> in a project root and imzip finds it from any subdirectory. Keys mirror the long flags, CLI values win.</p>
+          <div class="term small" data-copy>
+<pre><code><span class="dim"># imzip.toml</span>
+quality = 80
+format = <span class="str">"webp"</span>
+longest_edge = 1600
+
+[<span class="str">jpeg</span>]
+progressive = <span class="kw">true</span></code></pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <p><b>imzip</b> is written in Rust. Encoders: mozjpeg, oxipng, imagequant, libwebp, ravif. AVIF decoding by dav1d.</p>
+    <p><a href="https://github.com/Alyetama/ImZip">Source on GitHub</a></p>
+  </div>
+</footer>
+
+<script src="script.js"></script>
+</body>
+</html>

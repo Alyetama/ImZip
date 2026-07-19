@@ -1,33 +1,43 @@
 # imzip
 
-`imzip` is a fast command-line tool for **compressing, resizing and converting images** — built for one-off use and for scripts/pipelines. It processes files, directories and glob patterns in parallel with a progress bar, never aborts a batch because of a single bad file, and uses exit codes you can rely on.
+A command-line tool for compressing, resizing and converting images. Point it at one file, a folder, or a glob pattern and it works through everything in parallel with a progress bar. A corrupt file gets its own line in the report while the rest of the batch keeps going, and the exit code at the end tells you exactly what happened.
 
-Encoding is done with best-in-class codecs: **mozjpeg** for JPEG, **oxipng** (+ imagequant for palette quantization) for PNG, **libwebp** for WebP and **ravif** (pure-Rust AV1) for AVIF.
+Encoding is handled by mozjpeg for JPEG, oxipng and imagequant for PNG, libwebp for WebP and ravif for AVIF. AVIF input is decoded with dav1d.
+
+Measured on a 182 KB phone photo: quality 60 JPEG comes out at 4 KB. A 936 KB screenshot becomes a 20 KB WebP under a `--target-size 30KB` budget.
 
 ## Features
 
-- **Batch + parallel**: files, directories (`-r` to recurse) and glob patterns (`**/*.jpg`), deduplicated, processed on all cores with a progress bar.
-- **Compression**: per-format quality control, `--target-size 200KB` binary search, skip-already-optimal logic.
-- **Resize**: width/height/percent/max-width/max-height/longest-edge/shortest-edge/max-megapixels; never upscales unless `--allow-upscale`.
-- **Conversion**: JPEG / PNG / WebP / AVIF / GIF output, alpha flattening with `--background`.
-- **Metadata**: three modes (strip-but-keep-ICC by default, `--strip-all-metadata`, `--keep-metadata`) implemented at the byte level for JPEG, PNG and WebP.
-- **Config file**: `imzip.toml` / `.imziprc` discovered from cwd upwards; CLI flags override it.
-- **Script-friendly**: `--dry-run`, `--quiet`, `--verbose`, exit codes 0/1/2.
+- Batch input: files, directories (`-r` to recurse) and glob patterns like `**/*.jpg`, deduplicated, processed across all cores.
+- Per-format compression controls, a `--target-size 200KB` mode that searches quality for you, and logic that skips files which would only get bigger.
+- Resize by dimensions, percentage, edge limits or megapixel cap. Upscaling is off unless you pass `--allow-upscale`.
+- Conversion between JPEG, PNG, WebP, AVIF and static GIF, with alpha flattened onto a background color when the target format has none.
+- Three explicit metadata modes, implemented at the byte level for JPEG, PNG and WebP.
+- A config file (`imzip.toml` or `.imziprc`) discovered from the current directory upward. CLI flags beat config values.
+- `--dry-run`, `--quiet`, `--verbose` and exit codes 0/1/2, so it behaves in scripts and CI.
 
 ## Install
 
+One command, straight from the repo:
+
 ```sh
-cargo install --path .
-# or just build:
-cargo build --release   # binary at target/release/imzip
+cargo install --git https://github.com/Alyetama/ImZip
 ```
 
-Requires a C toolchain (mozjpeg and libwebp compile bundled C code). No nasm needed on aarch64.
+Or from a local clone:
+
+```sh
+git clone https://github.com/Alyetama/ImZip
+cd ImZip
+cargo install --path .
+```
+
+Either way you need a Rust toolchain ([rustup](https://rustup.rs) is the easy way to get one) and a C toolchain, because mozjpeg, libwebp and dav1d compile bundled C code. On aarch64 no nasm is required.
 
 ## Quick start
 
 ```sh
-imzip photo.jpg                      # -> photo_imzip.jpg (recompressed, defaults)
+imzip photo.jpg                      # writes photo_imzip.jpg with default settings
 imzip photo.jpg -q 60                # JPEG quality 60
 imzip images/ -o out/ --percent 50   # batch resize into out/
 imzip pic.png --format webp --target-size 200KB
@@ -36,115 +46,123 @@ imzip images/ -r --strip-all-metadata --in-place
 
 ## Flag reference
 
-### Input/Output
+### Input and output
 
 | Flag | Description |
 |---|---|
-| `<INPUT>...` | Files, directories, or glob patterns (`*.jpg`, `**/*.png`). Directories are scanned one level deep unless `-r`. Globs walk as deep as the pattern requires. |
+| `<INPUT>...` | Files, directories or glob patterns (`*.jpg`, `**/*.png`). Directories are scanned one level deep unless `-r` is given. Globs walk as deep as the pattern requires. |
 | `-r, --recursive` | Recurse into input directories. |
-| `-o, --output <DIR>` | Write outputs into `DIR`; directory/glob inputs keep their relative structure under it. |
-| `--in-place` | Overwrite input files in place (conflicts with `-o`). If `--format` changes the extension, a sibling file with the new extension is written and the original is kept. |
-| `--name-template <T>` | Output name template (may contain subdirectories). Placeholders: `{name}` `{ext}` `{format}` `{width}` `{height}` `{index}` `{parent}`. Default: `{name}_imzip.{ext}` (only used when neither `-o` nor `--in-place` is given). |
-| `--dry-run` | Print planned `input -> output` plus resize/format/quality decisions; write nothing. |
-| `--force` | Overwrite existing outputs and override both skip rules (see below). |
+| `-o, --output <DIR>` | Write outputs into `DIR`. Directory and glob inputs keep their relative structure under it. |
+| `--in-place` | Overwrite input files (conflicts with `-o`). If `--format` changes the extension, a sibling file with the new extension is written and the original is kept. |
+| `--name-template <T>` | Output name template, may contain subdirectories. Placeholders: `{name}` `{ext}` `{format}` `{width}` `{height}` `{index}` `{parent}`. Default: `{name}_imzip.{ext}`, used only when neither `-o` nor `--in-place` is given. |
+| `--dry-run` | Print the planned `input -> output` mapping plus resize, format and quality decisions. Writes nothing. |
+| `--force` | Overwrite existing outputs and override both skip rules described below. |
 
-Notes:
+Two skip rules are on by default:
 
-- Without `--force`, an already existing output file is an **error for that file** (never a silent overwrite), except `--in-place`.
-- `--target-size` skips files whose input is already under the target.
-- A pure recompress (no resize, no format change) that would end up **larger** than the input is skipped and reported as *already optimal*. `--force` overrides both.
+- With `--target-size`, a file that is already under the target is skipped.
+- A pure recompress (no resize, no format change) that would come out larger than the input is skipped and reported as already optimal.
 
-### Resize (mutually exclusive modes)
+Without `--force`, an existing output file is an error for that file, never a silent overwrite. `--in-place` is the exception.
+
+### Resize
+
+The resize modes are mutually exclusive:
 
 | Flag | Description |
 |---|---|
-| `--width <PX>` / `--height <PX>` | Both: exact size. One alone: scale keeping aspect ratio. |
-| `--percent <F>` | Scale to percent (e.g. `50`, `33.3`). |
-| `--max-width <PX>` / `--max-height <PX>` | Downscale to at most this size (no-op if smaller). |
-| `--longest-edge <PX>` | Downscale so the longest edge is PX. |
-| `--shortest-edge <PX>` | Scale so the shortest edge is PX. |
-| `--max-megapixels <F>` | Downscale to at most F megapixels (e.g. `2.0`). |
-| `--allow-upscale` | Permit enlarging (default: never upscale; up-only requests become no-ops). |
-| `--filter <F>` | `nearest`, `triangle`, `catmull-rom`, `lanczos3` (default). |
+| `--width <PX>` / `--height <PX>` | Both together: exact size. One alone: scale the other dimension to keep the aspect ratio. |
+| `--percent <F>` | Scale to a percentage, e.g. `50` or `33.3`. |
+| `--max-width <PX>` / `--max-height <PX>` | Downscale to at most this size. No-op if the image is already smaller. |
+| `--longest-edge <PX>` | Downscale so the longest edge equals PX. |
+| `--shortest-edge <PX>` | Scale so the shortest edge equals PX. |
+| `--max-megapixels <F>` | Downscale to at most F megapixels, e.g. `2.0`. |
+| `--allow-upscale` | Permit enlarging. By default imzip never upscales and up-only requests become no-ops. |
+| `--filter <F>` | Resampling filter: `nearest`, `triangle`, `catmull-rom` or `lanczos3` (default). |
 
 ### Compression
 
 | Flag | Description |
 |---|---|
-| `-q, --quality <0-100>` | Quality for lossy formats (JPEG/WebP/AVIF). Default: 75. |
-| `--progressive` | Progressive JPEG. |
-| `--chroma-subsampling <444\|422\|420>` | JPEG chroma subsampling (default: 420). |
-| `--png-compression <0-6>` | oxipng optimization preset (default: 2). |
-| `--png-colors <2-256>` | Quantize PNG to a palette of N colors (imagequant), then optimize. |
-| `--webp-lossless` | Lossless WebP. |
-| `--avif-speed <1-10>` | ravif speed, 1 = slow/smallest (default: 6). |
-| `--target-size <SIZE>` | e.g. `200KB`, `1.5MB`, `500K`, `1048576` (SI units: 1 KB = 1000 B). Binary-searches quality (1–100, ≤7 iterations) and keeps the highest quality that fits, or the smallest result if none fits. Lossy formats only (JPEG/WebP/AVIF); errors for PNG/GIF targets. |
+| `-q, --quality <0-100>` | Quality for the lossy formats (JPEG, WebP, AVIF). Default: 75. |
+| `--progressive` | Write progressive JPEG. |
+| `--chroma-subsampling <MODE>` | JPEG chroma subsampling: `444`, `422` or `420`. Default: 420. |
+| `--png-compression <0-6>` | oxipng optimization preset. Default: 2. |
+| `--png-colors <2-256>` | Quantize the PNG to an N-color palette with imagequant, then optimize. |
+| `--webp-lossless` | Write lossless WebP. |
+| `--avif-speed <1-10>` | ravif speed. 1 is slowest and smallest. Default: 6. |
+| `--target-size <SIZE>` | e.g. `200KB`, `1.5MB`, `500K` or a plain byte count. imzip binary-searches the quality setting (1 to 100, at most 7 tries) and keeps the highest quality that fits the budget, or the smallest result if nothing fits. Works for JPEG, WebP and AVIF; asking for a size target on PNG or GIF is an error. |
+
+`--target-size` uses SI units: 1 KB is 1000 bytes.
 
 ### Format
 
 | Flag | Description |
 |---|---|
-| `--format <jpeg\|png\|webp\|avif\|gif>` | Convert output format. Default: keep input format. Inputs that cannot be re-encoded (BMP, TIFF, TGA, ICO, PNM) fall back to PNG. GIF output is static (single frame). |
-| `--background <COLOR>` | Alpha-flattening background for JPEG/GIF: `#RRGGBB` or `white`/`black`/`red`/`green`/`blue` (default: white). |
+| `--format <FMT>` | Convert the output format: `jpeg`, `png`, `webp`, `avif` or `gif`. Default: keep the input format. Inputs that imzip cannot re-encode (BMP, TIFF, TGA, ICO, PNM) are written as PNG. GIF output is a single static frame. |
+| `--background <COLOR>` | Background used when flattening alpha for JPEG or GIF: `#RRGGBB`, or one of `white`, `black`, `red`, `green`, `blue`. Default: white. |
 
 ### Metadata
 
 The three modes are mutually exclusive:
 
-| | EXIF / XMP / IPTC | ICC color profile |
+| Mode | EXIF / XMP / IPTC | ICC color profile |
 |---|---|---|
-| **default** | stripped | **kept** |
+| default | stripped | kept |
 | `--strip-all-metadata` | stripped | stripped |
-| `--keep-metadata` | copied (best effort) | kept |
+| `--keep-metadata` | copied over (best effort) | kept |
 
-Format support for metadata preservation (byte-level re-injection after encoding):
+The default exists for a reason: EXIF often contains GPS coordinates and camera details you probably do not want to publish, while the ICC profile is what keeps colors correct. Dropping the first and keeping the second is the safe middle ground. If you want a completely clean file, take `--strip-all-metadata`. If you are archiving or passing files to another tool in a color-managed chain, take `--keep-metadata`.
+
+Preservation is done by re-injecting the metadata into the encoded bytes:
 
 | Format | ICC | EXIF | XMP |
 |---|---|---|---|
-| JPEG | ✅ APP2 `ICC_PROFILE` (multi-chunk) | ✅ APP1 | ✅ APP1 |
-| PNG | ✅ `iCCP` | ✅ `eXIf` | ✅ `iTXt` |
-| WebP | ✅ `ICCP` | ✅ `EXIF` | ✅ `XMP ` (VP8X container rebuilt) |
-| AVIF | ❌ | ❌ | ❌ |
-| GIF | ❌ | ❌ | ❌ |
+| JPEG | Yes, APP2 `ICC_PROFILE` with multi-chunk reassembly | Yes, APP1 | Yes, APP1 |
+| PNG | Yes, `iCCP` | Yes, `eXIf` | Yes, `iTXt` |
+| WebP | Yes, `ICCP` | Yes, `EXIF` | Yes, `XMP ` (VP8X container rebuilt) |
+| AVIF | No | No | No |
+| GIF | No | No | No |
 
-### Config/Diagnostics
+### Config and diagnostics
 
 | Flag | Description |
 |---|---|
-| `--config <PATH>` | Use this config file (default: search cwd and ancestors for `imzip.toml`, `.imziprc`, `.imzip.toml`). |
-| `-j, --jobs <N>` | Parallel jobs (default: all CPU cores). |
-| `-v, --verbose` | Print a line for every processed file. |
-| `--quiet` | Errors only (stderr); no progress bar, no summary. (`-q` is quality.) |
-| `--no-progress` | Disable the progress bar (also auto-disabled when stderr is not a tty). |
+| `--config <PATH>` | Use this config file. Default: search the current directory and its ancestors for `imzip.toml`, `.imziprc` or `.imzip.toml`. |
+| `-j, --jobs <N>` | Parallel worker threads: a number, or `auto` for all CPU cores. Default: `auto`. |
+| `--sequential` | Process files one at a time, no parallelism. Same as `--jobs 1`; handy for debugging or low-memory machines. Conflicts with `--jobs`. |
+| `-v, --verbose` | Print one line per processed file, including the quality chosen by `--target-size`. |
+| `--quiet` | Print errors only, to stderr. No progress bar, no summary. Note that `-q` means quality. |
+| `--no-progress` | Disable the progress bar. It is also disabled automatically when stderr is not a terminal. |
 
-Human report (per-file lines + summary) goes to **stdout**, progress bar and quiet-mode errors to **stderr**.
+The human-readable report goes to stdout. The progress bar and quiet-mode errors go to stderr, so piping the report somewhere never breaks the display.
 
 ## Exit codes
 
 | Code | Meaning |
 |---|---|
-| 0 | All files processed successfully (skips are OK). |
-| 1 | One or more files failed (the batch still processed the rest). |
-| 2 | Invalid arguments/usage (clap parse errors, invalid config, unknown template placeholder, …). |
+| 0 | Everything succeeded. Skipped files count as success. |
+| 1 | One or more files failed. The batch still processed the rest. |
+| 2 | Invalid arguments or usage: clap parse errors, bad config, unknown template placeholder, and so on. |
 
 ## Config file
 
-Discovery order: `--config <PATH>`, else the first of `imzip.toml`, `.imziprc`, `.imzip.toml` found in the current directory or any ancestor. All fields optional; snake_case names match the long CLI flags. Precedence: **CLI flag > config > built-in default**.
+Discovery order: `--config <PATH>` wins; otherwise the first of `imzip.toml`, `.imziprc`, `.imzip.toml` found in the current directory or any ancestor. Every field is optional, and the snake_case names match the long CLI flags. Precedence is CLI flag over config over built-in default.
 
 ```toml
-# imzip.toml — example with every key
+# imzip.toml, example with every key
 recursive = false
 output = "out"
 # in_place = false
 # name_template = "{name}_min.{ext}"
 dry_run = false
 force = false
-jobs = 8
+jobs = 8                   # worker threads; 0 or omit for auto (all cores)
 verbose = false
 quiet = false
 no_progress = false
 
-# resize (one mode only)
+# resize: set one mode only
 # width = 1200
 # height = 800
 # percent = 50.0
@@ -180,69 +198,67 @@ speed = 6                  # 1-10
 
 ## Examples
 
-Single-file compress:
+Compress a single file:
 
 ```sh
 imzip photo.jpg -q 70
-# photo_imzip.jpg written next to the input
+# photo_imzip.jpg is written next to the input
 ```
 
-Batch resize a folder recursively into an output dir (structure mirrored):
+Resize a folder recursively into an output directory, keeping the structure:
 
 ```sh
 imzip ~/Pictures/vacation -r -o out/ --longest-edge 1600 -q 80
 ```
 
-Convert PNG to WebP with a size budget:
+Convert a PNG to WebP under a size budget:
 
 ```sh
 imzip screenshot.png --format webp --target-size 200KB
-# quality is auto-searched; the chosen quality is shown with --verbose
+# run with --verbose to see the quality the search landed on
 ```
 
-Strip everything including ICC, in place:
+Strip all metadata including the ICC profile, in place:
 
 ```sh
 imzip images/ -r --strip-all-metadata --in-place --force
 ```
 
-Dry run (plan only):
+See what a run would do without writing anything:
 
 ```sh
 imzip images/ -r --format avif --percent 50 --dry-run
 ```
 
-Custom naming with templates:
+Rename outputs with a template:
 
 ```sh
 imzip "assets/**/*.png" -o dist/ --format webp --name-template "{parent}/{name}-{width}x{height}.{ext}"
-# dist/icons/logo-512x512.webp, ...
+# produces paths like dist/icons/logo-512x512.webp
 ```
 
-Pipeline usage in shell loops:
+Use it from shell loops and CI:
 
 ```sh
 find . -name '*.jpg' -print0 | xargs -0 -n1 -P8 imzip -q 75 --quiet
 for f in *.png; do imzip "$f" --format webp || echo "failed: $f"; done
-```
 
-`--quiet` + exit codes make it safe in CI: `imzip dist/ -r -q 75 --quiet || notifyFailure` (here `-q` is quality).
+imzip dist/ -r -q 75 --quiet || notifyFailure   # -q is quality here
+```
 
 ## Known limitations
 
-- **AVIF and GIF outputs never carry metadata** (no ICC/EXIF/XMP preservation). AVIF *input* decoding is supported (pure-Rust dav1d).
-- **GIF output is static**: only the first frame / a single frame is written.
-- **GIF input animation**: only the first frame is read.
-- EXIF orientation is not applied when decoding (pixels are used as stored).
-- BMP/TIFF/TGA/ICO/PNM inputs without `--format` are written as PNG (they have no encoder in imzip).
-- `--target-size` works only for lossy outputs (JPEG/WebP/AVIF).
-- `--target-size` uses SI units (1 KB = 1000 bytes).
+- AVIF and GIF outputs never carry metadata. AVIF input decoding works, via dav1d.
+- GIF is static in both directions: only the first frame is read, and one frame is written.
+- EXIF orientation is not applied when decoding; pixels are used as stored.
+- BMP, TIFF, TGA, ICO and PNM inputs without `--format` are written as PNG, since imzip has no encoder for those formats.
+- `--target-size` only works for lossy outputs (JPEG, WebP, AVIF) and uses SI units.
 
 ## Development
 
 ```sh
 cargo build
-cargo test        # unit + integration tests (fixtures generated on the fly)
+cargo test        # unit and integration tests; fixtures are generated on the fly
 ```
 
-Layout: `src/cli.rs` (clap), `src/config.rs` (config file), `src/resize.rs` (pure resize math), `src/pipeline.rs` (per-file pipeline), `src/encoders/` (codec adapters), `src/metadata.rs` (byte-level ICC/EXIF/XMP), `src/batch.rs` (discovery + parallel runner), `src/report.rs` (report + exit codes).
+Layout: `src/cli.rs` (clap parsing), `src/config.rs` (config file), `src/resize.rs` (pure resize math), `src/pipeline.rs` (per-file pipeline), `src/encoders/` (codec adapters), `src/metadata.rs` (byte-level ICC/EXIF/XMP), `src/batch.rs` (discovery and parallel runner), `src/report.rs` (report and exit codes).
