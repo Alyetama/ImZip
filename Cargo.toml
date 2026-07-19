@@ -1,0 +1,39 @@
+[package]
+name = "imzip"
+version = "0.1.0"
+edition = "2021"
+description = "Batch image compressor, resizer and converter"
+license = "MIT"
+
+[dependencies]
+clap = { version = "4", features = ["derive", "wrap_help"] }
+image = { version = "0.25", default-features = false, features = [
+    "jpeg",
+    "png",
+    "gif",
+    "webp",
+    "bmp",
+    "tiff",
+    "tga",
+    "ico",
+    "pnm",
+    "avif-native",
+] }
+mozjpeg = "0.10"
+oxipng = "9"
+png = "0.17"
+imagequant = "4"
+webp = "0.3"
+ravif = "0.11"
+rgb = "0.8"
+rayon = "1"
+indicatif = "0.17"
+walkdir = "2"
+globset = "0.4"
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"
+flate2 = "1"
+thiserror = "2"
+
+[dev-dependencies]
+tempfile = "3"
