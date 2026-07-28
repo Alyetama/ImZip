@@ -235,9 +235,13 @@ imzip images/ -r --format avif --percent 50 --dry-run
 Rename outputs with a template:
 
 ```sh
-imzip "assets/**/*.png" -o dist/ --format webp --name-template "{parent}/{name}-{width}x{height}.{ext}"
-# produces paths like dist/icons/logo-512x512.webp
+imzip "assets/**/*.png" -o dist/ --format webp --name-template "{name}-{width}x{height}.{ext}"
+# assets/icons/logo.png -> dist/icons/logo-800x600.webp
 ```
+
+With `-o`, the directory structure below the input root is already mirrored, so adding `{parent}/`
+to the template on top of that repeats the directory (`dist/icons/icons/...`). Use `{parent}` when
+you are writing without `-o`, or when you want the parent name folded into the file name.
 
 Use it from shell loops and CI:
 

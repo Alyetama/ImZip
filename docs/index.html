@@ -58,11 +58,10 @@ try {
         <div class="term" data-copy>
           <div class="term-bar"><span></span><span></span><span></span><em>terminal</em></div>
 <pre><code><span class="p">$</span> imzip photo.jpg -q 60
-photo.jpg <span class="dim">-></span> photo_imzip.jpg <span class="ok">ok</span> <span class="dim">182.3 KB -> 4.0 KB</span>
+Done: <span class="ok">1 ok</span>, 0 skipped, 0 failed <span class="dim">| 182.3 KB -> 4.0 KB (97.8% saved)</span>
 
-<span class="p">$</span> imzip shots/ -r --format webp --target-size 30KB
-<span class="dim">████████████</span> 12/12
-Done: 12 ok, 0 skipped, 0 failed <span class="dim">| 11.2 MB -> 349 KB</span></code></pre>
+<span class="p">$</span> imzip shots/ -r --format webp --target-size 30KB -o web/
+Done: <span class="ok">3 ok</span>, 0 skipped, 0 failed <span class="dim">| 1.30 MB -> 73.9 KB (94.3% saved)</span></code></pre>
         </div>
 
         <div class="shrink" aria-label="Compression results">
@@ -224,8 +223,9 @@ Done: 12 ok, 0 skipped, 0 failed <span class="dim">| 11.2 MB -> 349 KB</span></c
         <figure class="ex" data-copy>
           <figcaption>Rename outputs with a template</figcaption>
 <pre><code><span class="p">$</span> imzip "assets/**/*.png" -o dist/ --format webp \
-    --name-template "{parent}/{name}-{width}x{height}.{ext}"
-<span class="dim"># dist/icons/logo-512x512.webp</span></code></pre>
+    --name-template "{name}-{width}x{height}.{ext}"
+<span class="dim"># assets/icons/logo.png -> dist/icons/logo-800x600.webp
+# -o already mirrors the input structure; adding {parent}/ repeats it</span></code></pre>
         </figure>
 
       </div>
